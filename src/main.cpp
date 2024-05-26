@@ -80,9 +80,9 @@ void loop()
    valores = "90, " +String(Angle[0]) + "," + String(Angle[1]) + "," + String(Angle[2]) + ", -90";
    //Serial.println(valores);
    
-   i +=0.1;
+  /* i +=0.1;
    Serial.print("Num:");
-   Serial.println(i);
+   Serial.println(i);*/
    
    delay(10);
 }
