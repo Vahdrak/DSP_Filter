@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <Wire.h>
+#include <math.h>
 
 // Dirección I2C de la IMU
 #define MPU 0x68
@@ -16,6 +17,9 @@ float AccX, AccY, AccZ;
 
 // Giroscopio convertido (°/s)
 float GyroX, GyroY, GyroZ;
+
+// Parámetro para el filtro complementario (ajustable)
+float alpha = 0.95; // Controla la contribución del filtro de paso bajo
 
 void setup() {
   Wire.begin(D2, D1); // D2(GPIO4)=SDA / D1(GPIO5)=SCL
@@ -55,16 +59,65 @@ void loop() {
   GyroY = GyY / G_R;
   GyroZ = GyZ / G_R;
 
-  // Mostrar los valores convertidos en el formato esperado por el Serial Plotter
-  // Nota: El Serial Plotter espera que cada valor sea separado por espacios o comas y cada conjunto de valores en una nueva línea
+  // Filtrar las lecturas usando el filtro complementario
+  static float filtered_AccX = AccX, filtered_AccY = AccY, filtered_AccZ = AccZ;
+  static float filtered_GyroX = GyroX, filtered_GyroY = GyroY, filtered_GyroZ = GyroZ;
+
+  filtered_AccX = alpha * filtered_AccX + (1 - alpha) * AccX;
+  filtered_AccY = alpha * filtered_AccY + (1 - alpha) * AccY;
+  filtered_AccZ = alpha * filtered_AccZ + (1 - alpha) * AccZ;
+
+  filtered_GyroX = alpha * filtered_GyroX + (1 - alpha) * GyroX;
+  filtered_GyroY = alpha * filtered_GyroY + (1 - alpha) * GyroY;
+  filtered_GyroZ = alpha * filtered_GyroZ + (1 - alpha) * GyroZ;
+
+  // Calcular magnitudes de vibración en cada eje
+  float vibration_magnitude_AccX = abs(filtered_AccX);
+  float vibration_magnitude_AccY = abs(filtered_AccY);
+  float vibration_magnitude_AccZ = abs(filtered_AccZ);
+  float vibration_magnitude_GyroX = abs(filtered_GyroX);
+  float vibration_magnitude_GyroY = abs(filtered_GyroY);
+  float vibration_magnitude_GyroZ = abs(filtered_GyroZ);
+
+  // Mostrar las magnitudes de vibración junto con sus ángulos correspondientes
+  float angle_AccX = atan2(filtered_AccY, filtered_AccZ) * 180.0 / M_PI;
+  float angle_AccY = atan2(filtered_AccX, filtered_AccZ) * 180.0 / M_PI;
+  float angle_AccZ = atan2(filtered_AccX, filtered_AccY) * 180.0 / M_PI;
+  float angle_GyroX = filtered_GyroX;
+  float angle_GyroY = filtered_GyroY;
+  float angle_GyroZ = filtered_GyroZ;
+
+  Serial.println("Acelerómetro:");
+  Serial.print("X: ");
+  Serial.print(vibration_magnitude_AccX);
+  Serial.print(" en ángulo: ");
+  Serial.println(angle_AccX);
   
-  Serial.print("AccX:"); Serial.print(AccX); Serial.print(" ");
-  Serial.print("AccY:"); Serial.print(AccY); Serial.print(" ");
-  Serial.print("AccZ:"); Serial.println(AccZ);
+  Serial.print("Y: ");
+  Serial.print(vibration_magnitude_AccY);
+  Serial.print(" en ángulo: ");
+  Serial.println(angle_AccY);
+  
+  Serial.print("Z: ");
+  Serial.print(vibration_magnitude_AccZ);
+  Serial.print(" en ángulo: ");
+  Serial.println(angle_AccZ);
 
-  Serial.print("GyroX:"); Serial.print(GyroX); Serial.print(" ");
-  Serial.print("GyroY:"); Serial.print(GyroY); Serial.print(" ");
-  Serial.print("GyroZ:"); Serial.println(GyroZ);
+  Serial.println("Giroscopio:");
+  Serial.print("X: ");
+  Serial.print(vibration_magnitude_GyroX);
+  Serial.print(" en ángulo: ");
+  Serial.println(angle_GyroX);
+  
+  Serial.print("Y: ");
+  Serial.print(vibration_magnitude_GyroY);
+  Serial.print(" en ángulo: ");
+  Serial.println(angle_GyroY);
+  
+  Serial.print("Z: ");
+  Serial.print(vibration_magnitude_GyroZ);
+  Serial.print(" en ángulo: ");
+  Serial.println(angle_GyroZ);
 
-
+  delay(10); // Esperar un breve tiempo antes de la próxima lectura
 }
