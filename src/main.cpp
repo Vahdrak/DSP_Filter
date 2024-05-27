@@ -55,20 +55,16 @@ void loop() {
   GyroY = GyY / G_R;
   GyroZ = GyZ / G_R;
 
-  // Mostrar los valores crudos y convertidos
-  Serial.print("AcX: "); Serial.print(AcX);
-  Serial.print(" AcY: "); Serial.print(AcY);
-  Serial.print(" AcZ: "); Serial.print(AcZ);
-  Serial.print(" | AccX (g): "); Serial.print(AccX);
-  Serial.print(" AccY (g): "); Serial.print(AccY);
-  Serial.print(" AccZ (g): "); Serial.println(AccZ);
+  // Mostrar los valores convertidos en el formato esperado por el Serial Plotter
+  // Nota: El Serial Plotter espera que cada valor sea separado por espacios o comas y cada conjunto de valores en una nueva línea
+  
+  Serial.print("AccX:"); Serial.print(AccX); Serial.print(" ");
+  Serial.print("AccY:"); Serial.print(AccY); Serial.print(" ");
+  Serial.print("AccZ:"); Serial.println(AccZ);
 
-  Serial.print("GyX: "); Serial.print(GyX);
-  Serial.print(" GyY: "); Serial.print(GyY);
-  Serial.print(" GyZ: "); Serial.print(GyZ);
-  Serial.print(" | GyroX (°/s): "); Serial.print(GyroX);
-  Serial.print(" GyroY (°/s): "); Serial.print(GyroY);
-  Serial.print(" GyroZ (°/s): "); Serial.println(GyroZ);
+  Serial.print("GyroX:"); Serial.print(GyroX); Serial.print(" ");
+  Serial.print("GyroY:"); Serial.print(GyroY); Serial.print(" ");
+  Serial.print("GyroZ:"); Serial.println(GyroZ);
 
-  delay(100); // Pausa de 100 milisegundos
+
 }
