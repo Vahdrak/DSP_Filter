@@ -1,67 +1,115 @@
 #include <Arduino.h>
 #include <Wire.h>
 
-#define MPU_ADDR 0x68 // I2C address of the MPU-6050
+// Dirección I2C de la IMU
+#define MPU 0x68
 
-//Ratios de conversion
-#define A_R 16384.0 // 32768/2
-#define G_R 131.0 // 32768/250
- 
-//Conversion de radianes a grados 180/PI
-#define RAD_A_DEG = 57.295779
+// Ratios de conversión
+#define A_R 16384.0 // 32768/2 para ±2g
+#define G_R 131.0   // 32768/250 para ±250°/s
 
-// Variables for storing sensor data
-int16_t accelerometer_x;
-int16_t accelerometer_y;
-int16_t accelerometer_z;
-int16_t temperature;
-int16_t gyro_x;
-int16_t gyro_y;
-int16_t gyro_z;
+// MPU-6050 da los valores en enteros de 16 bits
+int16_t AcX, AcY, AcZ, GyX, GyY, GyZ;
+
+// Aceleración convertida (g)
+float AccX, AccY, AccZ;
+
+// Giroscopio convertido (°/s)
+float GyroX, GyroY, GyroZ;
+
+// Variables para el filtro de media móvil
+const int filterSize = 10; // Tamaño de la ventana del filtro de media móvil
+float AccXBuffer[filterSize], AccYBuffer[filterSize], AccZBuffer[filterSize];
+float GyroXBuffer[filterSize], GyroYBuffer[filterSize], GyroZBuffer[filterSize];
+int filterIndex = 0;
+float AccXSum = 0, AccYSum = 0, AccZSum = 0;
+float GyroXSum = 0, GyroYSum = 0, GyroZSum = 0;
 
 void setup() {
-  Serial.begin(115200);
-  Wire.begin(4,5); // D2(GPIO4)=SDA / D1(GPIO5)=SCL
-  // Wake up the MPU-6050
-  Wire.beginTransmission(MPU_ADDR);
-  Wire.write(0x6B); // PWR_MGMT_1 register
-  Wire.write(0); // set to zero (wakes up the MPU-6050)
+  Wire.begin(D2, D1); // D2(GPIO4)=SDA / D1(GPIO5)=SCL
+  Wire.beginTransmission(MPU);
+  Wire.write(0x6B);
+  Wire.write(0);
   Wire.endTransmission(true);
+  Serial.begin(115200);
+  
+  // Inicializar los buffers del filtro de media móvil
+  for (int i = 0; i < filterSize; i++) {
+    AccXBuffer[i] = 0;
+    AccYBuffer[i] = 0;
+    AccZBuffer[i] = 0;
+    GyroXBuffer[i] = 0;
+    GyroYBuffer[i] = 0;
+    GyroZBuffer[i] = 0;
+  }
 }
 
 void loop() {
-  // Read accelerometer, gyroscope, and temperature data from MPU-6050
-  Wire.beginTransmission(MPU_ADDR);
-  Wire.write(0x3B); // Starting register for accelerometer data
-  Wire.endTransmission(false); // Send restart condition
-  Wire.requestFrom(MPU_ADDR, 14, true); // Request 14 bytes of data
+  // Leer los valores del Acelerómetro de la IMU
+  Wire.beginTransmission(MPU);
+  Wire.write(0x3B); // Pedir el registro 0x3B - corresponde al AcX
+  Wire.endTransmission(false);
+  Wire.requestFrom(MPU, 6, true); // A partir del 0x3B, se piden 6 registros
+  AcX = Wire.read() << 8 | Wire.read(); // Cada valor ocupa 2 registros
+  AcY = Wire.read() << 8 | Wire.read();
+  AcZ = Wire.read() << 8 | Wire.read();
 
-  // Read accelerometer data
-  accelerometer_x = Wire.read() << 8 | Wire.read();
-  accelerometer_y = Wire.read() << 8 | Wire.read();
-  accelerometer_z = Wire.read() << 8 | Wire.read();
+  // Leer los valores del Giroscopio de la IMU
+  Wire.beginTransmission(MPU);
+  Wire.write(0x43); // Pedir el registro 0x43 - corresponde al GyX
+  Wire.endTransmission(false);
+  Wire.requestFrom(MPU, 6, true); // A partir del 0x43, se piden 6 registros
+  GyX = Wire.read() << 8 | Wire.read(); // Cada valor ocupa 2 registros
+  GyY = Wire.read() << 8 | Wire.read();
+  GyZ = Wire.read() << 8 | Wire.read();
 
-  // Read temperature data
-  temperature = Wire.read() << 8 | Wire.read();
+  // Convertir las lecturas del acelerómetro a g
+  AccX = AcX / A_R;
+  AccY = AcY / A_R;
+  AccZ = AcZ / A_R;
 
-  // Read gyroscope data
-  gyro_x = Wire.read() << 8 | Wire.read();
-  gyro_y = Wire.read() << 8 | Wire.read();
-  gyro_z = Wire.read() << 8 | Wire.read();
+  // Convertir las lecturas del giroscopio a °/s
+  GyroX = GyX / G_R;
+  GyroY = GyY / G_R;
+  GyroZ = GyZ / G_R;
 
-  // Print sensor data to serial monitor
-  //Serial.print(" | aX = ");
-  Serial.print(">gyro_x:");
-  Serial.println(gyro_x);
-  //Serial.print(" | aY = ");
-  Serial.print(">gyro_y:");
-  Serial.println(gyro_y);
-  //Serial.print(" | aZ = ");
-  Serial.print(">gyro_z:");
-  Serial.println(gyro_z);
+  // Actualizar el filtro de media móvil para el acelerómetro
+  AccXSum = AccXSum - AccXBuffer[filterIndex] + AccX;
+  AccYSum = AccYSum - AccYBuffer[filterIndex] + AccY;
+  AccZSum = AccZSum - AccZBuffer[filterIndex] + AccZ;
 
+  AccXBuffer[filterIndex] = AccX;
+  AccYBuffer[filterIndex] = AccY;
+  AccZBuffer[filterIndex] = AccZ;
 
-  Serial.println();
+  float AccXFiltered = AccXSum / filterSize;
+  float AccYFiltered = AccYSum / filterSize;
+  float AccZFiltered = AccZSum / filterSize;
 
-  delay(100); // Delay between readings
+  // Actualizar el filtro de media móvil para el giroscopio
+  GyroXSum = GyroXSum - GyroXBuffer[filterIndex] + GyroX;
+  GyroYSum = GyroYSum - GyroYBuffer[filterIndex] + GyroY;
+  GyroZSum = GyroZSum - GyroZBuffer[filterIndex] + GyroZ;
+
+  GyroXBuffer[filterIndex] = GyroX;
+  GyroYBuffer[filterIndex] = GyroY;
+  GyroZBuffer[filterIndex] = GyroZ;
+
+  float GyroXFiltered = GyroXSum / filterSize;
+  float GyroYFiltered = GyroYSum / filterSize;
+  float GyroZFiltered = GyroZSum / filterSize;
+
+  // Incrementar el índice del filtro
+  filterIndex = (filterIndex + 1) % filterSize;
+
+  // Mostrar los valores filtrados en el Serial Plotter
+  Serial.print("Filtered AccX:"); Serial.print(AccXFiltered); Serial.print(" ");
+  Serial.print("Filtered AccY:"); Serial.print(AccYFiltered); Serial.print(" ");
+  Serial.print("Filtered AccZ:"); Serial.println(AccZFiltered);
+
+  Serial.print("Filtered GyroX:"); Serial.print(GyroXFiltered); Serial.print(" ");
+  Serial.print("Filtered GyroY:"); Serial.print(GyroYFiltered); Serial.print(" ");
+  Serial.print("Filtered GyroZ:"); Serial.println(GyroZFiltered);
+
+  delay(10); // Esperar un breve tiempo antes de la próxima lectura
 }
