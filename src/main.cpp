@@ -6,12 +6,17 @@
 
 // Ratios de conversión
 #define A_R 16384.0 // 32768/2 para ±2g
+#define G_R 131.0   // Para ±250°/s
 
 // MPU-6050 da los valores en enteros de 16 bits
 int16_t AcX, AcY, AcZ;
+int16_t GyX, GyY, GyZ;
 
 // Aceleración convertida (g)
 float AccX, AccY, AccZ;
+
+// Velocidad angular convertida (°/s)
+float GyroX, GyroY, GyroZ;
 
 void setup() {
   Wire.begin(D2, D1); // D2(GPIO4)=SDA / D1(GPIO5)=SCL
@@ -37,13 +42,34 @@ void loop() {
   AccY = AcY / A_R;
   AccZ = AcZ / A_R;
 
-  // Enviar las lecturas del acelerómetro al Serial Plotter
+  // Leer los valores del Giroscopio de la IMU
+  Wire.beginTransmission(MPU);
+  Wire.write(0x43); // Pedir el registro 0x43 - corresponde al GyX
+  Wire.endTransmission(false);
+  Wire.requestFrom(MPU, 6, true); // A partir del 0x43, se piden 6 registros
+  GyX = Wire.read() << 8 | Wire.read(); // Cada valor ocupa 2 registros
+  GyY = Wire.read() << 8 | Wire.read();
+  GyZ = Wire.read() << 8 | Wire.read();
+
+  // Convertir las lecturas del giroscopio a °/s
+  GyroX = GyX / G_R;
+  GyroY = GyY / G_R;
+  GyroZ = GyZ / G_R;
+
+  /*// Enviar las lecturas del acelerómetro al Serial Plotter
   Serial.print(">AccX:");
   Serial.print(AccX); Serial.print(" ,");
   Serial.print(">AccY:");
-  Serial.print(AccY); Serial.print(" ");
+  Serial.print(AccY); Serial.print(" ,");
   Serial.print(">AccZ:");
-  Serial.println(AccZ);
+  Serial.println(AccZ);*/
 
-  delay(10); // Esperar un breve tiempo antes de la próxima lectura
-}
+  // Enviar las lecturas del giroscopio al Serial Plotter
+  Serial.print(">GyroX:");
+  Serial.print(GyroX); Serial.print(" ,");
+  Serial.print(">GyroY:");
+  Serial.print(GyroY); Serial.print(" ,");
+  Serial.print(">GyroZ:");
+  Serial.println(GyroZ);
+
+ }
